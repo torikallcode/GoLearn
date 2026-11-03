@@ -1,0 +1,27 @@
+# Env
+.env
+.env.local
+*.local
+
+# Node
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Go
+backend/api
+backend/bin/
+*.exe
+*.test
+*.out
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# CommandCode
+.commandcode/

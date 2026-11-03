@@ -1,0 +1,232 @@
+CREATE TABLE users (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(100) NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'user',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE refresh_tokens (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME(6) NOT NULL,
+  revoked_at DATETIME(6) NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_refresh_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_refresh_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE paths (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  slug VARCHAR(120) NOT NULL UNIQUE,
+  title VARCHAR(160) NOT NULL,
+  description TEXT NOT NULL,
+  level VARCHAR(30) NOT NULL,
+  order_no INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE modules (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  path_id BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  order_no INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_module_path FOREIGN KEY (path_id) REFERENCES paths(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_module_path_title (path_id, title)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE lessons (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  module_id BIGINT UNSIGNED NOT NULL,
+  slug VARCHAR(140) NOT NULL UNIQUE,
+  title VARCHAR(180) NOT NULL,
+  summary TEXT NOT NULL,
+  content_md LONGTEXT NOT NULL,
+  estimated_minutes INT NOT NULL DEFAULT 10,
+  order_no INT NOT NULL DEFAULT 0,
+  is_published TINYINT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT fk_lesson_module FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
+  INDEX idx_lesson_module (module_id, order_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE exercises (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lesson_id BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  instructions_md LONGTEXT NOT NULL,
+  starter_code LONGTEXT NOT NULL,
+  solution_code LONGTEXT NOT NULL,
+  hints JSON NULL,
+  difficulty VARCHAR(20) NOT NULL DEFAULT 'mudah',
+  xp_reward INT NOT NULL DEFAULT 20,
+  CONSTRAINT fk_exercise_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_exercise_lesson_title (lesson_id, title)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE exercise_tests (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  exercise_id BIGINT UNSIGNED NOT NULL,
+  input LONGTEXT NULL,
+  expected_output LONGTEXT NOT NULL,
+  is_hidden TINYINT(1) NOT NULL DEFAULT 0,
+  CONSTRAINT fk_test_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
+  INDEX idx_test_exercise (exercise_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE quizzes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lesson_id BIGINT UNSIGNED NOT NULL,
+  question TEXT NOT NULL,
+  type VARCHAR(20) NOT NULL DEFAULT 'multiple_choice',
+  correct_answer VARCHAR(255) NULL,
+  explanation TEXT NOT NULL,
+  order_no INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_quiz_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_quiz_lesson_order (lesson_id, order_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE quiz_options (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  quiz_id BIGINT UNSIGNED NOT NULL,
+  text VARCHAR(500) NOT NULL,
+  is_correct TINYINT(1) NOT NULL DEFAULT 0,
+  order_no INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_option_quiz FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+  INDEX idx_option_quiz (quiz_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_lesson_progress (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  lesson_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'in_progress',
+  completed_at DATETIME(6) NULL,
+  time_spent_sec INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_progress_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_progress_user_lesson (user_id, lesson_id),
+  INDEX idx_progress_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_exercise_submissions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  exercise_id BIGINT UNSIGNED NOT NULL,
+  code LONGTEXT NOT NULL,
+  is_passed TINYINT(1) NOT NULL DEFAULT 0,
+  output LONGTEXT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_submission_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_submission_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
+  INDEX idx_submission_user (user_id, exercise_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_quiz_attempts (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  quiz_id BIGINT UNSIGNED NOT NULL,
+  is_correct TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_attempt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_attempt_quiz FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+  INDEX idx_attempt_user (user_id, quiz_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE flashcards (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lesson_id BIGINT UNSIGNED NOT NULL,
+  front TEXT NOT NULL,
+  back TEXT NOT NULL,
+  CONSTRAINT fk_flashcard_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_flashcard_lesson_front (lesson_id, front(190))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_flashcard_reviews (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  flashcard_id BIGINT UNSIGNED NOT NULL,
+  ease_factor DECIMAL(4,2) NOT NULL DEFAULT 2.50,
+  interval_days INT NOT NULL DEFAULT 0,
+  repetitions INT NOT NULL DEFAULT 0,
+  next_review_at DATETIME(6) NOT NULL,
+  CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_review_flashcard FOREIGN KEY (flashcard_id) REFERENCES flashcards(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_review_user_card (user_id, flashcard_id),
+  INDEX idx_review_due (user_id, next_review_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_stats (
+  user_id BIGINT UNSIGNED PRIMARY KEY,
+  xp INT NOT NULL DEFAULT 0,
+  level INT NOT NULL DEFAULT 1,
+  current_streak INT NOT NULL DEFAULT 0,
+  longest_streak INT NOT NULL DEFAULT 0,
+  last_active_date DATE NULL,
+  CONSTRAINT fk_stats_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE badges (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(60) NOT NULL UNIQUE,
+  name VARCHAR(120) NOT NULL,
+  description TEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_badges (
+  user_id BIGINT UNSIGNED NOT NULL,
+  badge_id BIGINT UNSIGNED NOT NULL,
+  earned_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (user_id, badge_id),
+  CONSTRAINT fk_ub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ub_badge FOREIGN KEY (badge_id) REFERENCES badges(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE notes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  lesson_id BIGINT UNSIGNED NOT NULL,
+  content TEXT NOT NULL,
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_note_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_note_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_note_user_lesson (user_id, lesson_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE bookmarks (
+  user_id BIGINT UNSIGNED NOT NULL,
+  lesson_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (user_id, lesson_id),
+  CONSTRAINT fk_bookmark_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_bookmark_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE projects (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  slug VARCHAR(120) NOT NULL UNIQUE,
+  title VARCHAR(180) NOT NULL,
+  description TEXT NOT NULL,
+  level VARCHAR(30) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE project_steps (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  project_id BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  content_md LONGTEXT NOT NULL,
+  order_no INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_step_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_step_project_order (project_id, order_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_project_progress (
+  user_id BIGINT UNSIGNED NOT NULL,
+  step_id BIGINT UNSIGNED NOT NULL,
+  is_done TINYINT(1) NOT NULL DEFAULT 0,
+  completed_at DATETIME(6) NULL,
+  PRIMARY KEY (user_id, step_id),
+  CONSTRAINT fk_upp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_upp_step FOREIGN KEY (step_id) REFERENCES project_steps(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

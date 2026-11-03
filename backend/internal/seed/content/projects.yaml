@@ -1,0 +1,269 @@
+projects:
+  - slug: cli-todo
+    title: CLI Todo App
+    description: Aplikasi todo berbasis terminal dengan penyimpanan JSON. Proyek pertama untuk memantapkan dasar Go dan file I/O.
+    level: Pemula
+    steps:
+      - title: Siapkan struktur dan model
+        content: |
+          ## Tujuan
+          Membuat module dan model data todo.
+
+          ```bash
+          mkdir todo && cd todo
+          go mod init todo
+          ```
+
+          Buat `main.go` dengan struct:
+
+          ```go
+          type Task struct {
+              ID    int    `json:"id"`
+              Title string `json:"title"`
+              Done  bool   `json:"done"`
+          }
+          ```
+
+          ## Checklist
+          - [ ] Module dibuat
+          - [ ] Struct Task punya tag JSON
+          - [ ] Program bisa mencetak daftar kosong
+      - title: Simpan dan muat dari file
+        content: |
+          ## Tujuan
+          Data tetap ada setelah program ditutup.
+
+          Gunakan `encoding/json` dan `os.ReadFile` / `os.WriteFile`. Jika file belum ada, mulai dengan slice kosong.
+
+          ```go
+          func muat(path string) ([]Task, error) {
+              data, err := os.ReadFile(path)
+              if errors.Is(err, fs.ErrNotExist) {
+                  return []Task{}, nil
+              }
+              if err != nil {
+                  return nil, err
+              }
+              var tasks []Task
+              err = json.Unmarshal(data, &tasks)
+              return tasks, err
+          }
+          ```
+
+          ## Checklist
+          - [ ] `tambah` menulis file
+          - [ ] `list` membaca file
+          - [ ] File rusak menghasilkan pesan error yang jelas
+      - title: Selesaikan dan hapus
+        content: |
+          ## Tujuan
+          Menambah perintah `done` dan `rm` dengan flag `flag` package.
+
+          ```bash
+          todo add "Belajar Go"
+          todo list
+          todo done -id 1
+          todo rm -id 1
+          ```
+
+          ## Checklist
+          - [ ] ID unik dan tidak dipakai ulang setelah hapus
+          - [ ] Perintah tidak dikenal menampilkan bantuan
+          - [ ] Ada minimal satu unit test untuk fungsi muat/simpan
+  - slug: url-shortener
+    title: URL Shortener API
+    description: REST API untuk memendekkan URL dengan MySQL. Latihan routing, validasi, dan migrasi database.
+    level: Menengah
+    steps:
+      - title: Desain skema dan endpoint
+        content: |
+          ## Tujuan
+          Menentukan kontrak API sebelum menulis kode.
+
+          | Method | Path | Fungsi |
+          |---|---|---|
+          | POST | /api/v1/links | Membuat short link |
+          | GET | /:code | Redirect |
+          | GET | /api/v1/links | Daftar link milik user |
+
+          Skema:
+
+          ```sql
+          CREATE TABLE links (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            code VARCHAR(12) UNIQUE NOT NULL,
+            target_url TEXT NOT NULL,
+            user_id BIGINT NOT NULL,
+            clicks BIGINT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          ```
+
+          ## Checklist
+          - [ ] Kontrak API disetujui
+          - [ ] Migrasi SQL dibuat
+          - [ ] Kode unik memakai random yang aman
+      - title: Implementasi handler dan repository
+        content: |
+          ## Tujuan
+          Memisahkan HTTP, logika, dan SQL.
+
+          Struktur:
+
+          ```
+          internal/handler/link.go
+          internal/service/link.go
+          internal/repository/link.go
+          ```
+
+          Validasi URL memakai `net/url`. Tolak skema selain http/https.
+
+          ## Checklist
+          - [ ] Handler hanya binding dan response
+          - [ ] Service memvalidasi input
+          - [ ] Repository memakai query parameter, bukan string concat
+      - title: Klik, cache, dan deploy
+        content: |
+          ## Tujuan
+          Menambah hitungan klik dan siap deploy.
+
+          Saat redirect, tambah `clicks` secara atomik. Tambahkan health check `GET /healthz`. Buat Dockerfile multi-stage.
+
+          ```dockerfile
+          FROM golang:1.22-alpine AS build
+          WORKDIR /src
+          COPY . .
+          RUN go build -o /bin/api ./cmd/api
+
+          FROM alpine:3.20
+          COPY --from=build /bin/api /bin/api
+          USER nobody
+          EXPOSE 8080
+          ENTRYPOINT ["/bin/api"]
+          ```
+
+          ## Checklist
+          - [ ] Redirect mengembalikan 302
+          - [ ] Klik bertambah tanpa race condition
+          - [ ] Container berjalan sebagai non-root
+  - slug: blog-api
+    title: Blog / Task Manager API
+    description: API dengan autentikasi JWT, CRUD, relasi user, dan otorisasi kepemilikan data.
+    level: Menengah
+    steps:
+      - title: Auth dan user
+        content: |
+          ## Tujuan
+          Registrasi, login, dan middleware JWT.
+
+          Aturan:
+          - Password di-hash dengan bcrypt.
+          - Access token singkat, refresh token disimpan di database.
+          - Semua endpoint tulis wajib auth.
+
+          ## Checklist
+          - [ ] Registrasi menolak email duplikat
+          - [ ] Login menghasilkan access dan refresh token
+          - [ ] Middleware menolak token kedaluwarsa
+      - title: CRUD resource dengan relasi
+        content: |
+          ## Tujuan
+          User hanya bisa mengubah miliknya sendiri.
+
+          ```sql
+          SELECT * FROM posts WHERE id = ? AND user_id = ?;
+          ```
+
+          Periksa `RowsAffected` untuk membedakan 404 dan 403.
+
+          ## Checklist
+          - [ ] List mendukung pagination
+          - [ ] Update memakai field opsional
+          - [ ] Test membuktikan user lain tidak bisa edit
+      - title: Dokumentasi dan pengujian
+        content: |
+          ## Tujuan
+          API mudah dipakai orang lain.
+
+          Tambahkan OpenAPI, contoh request, dan test handler memakai `httptest`.
+
+          ## Checklist
+          - [ ] Semua endpoint terdokumentasi
+          - [ ] Contoh error standar
+          - [ ] Coverage service > 60%
+  - slug: ecommerce-api
+    title: E-commerce API
+    description: Transaksi, stok, caching Redis, dan Docker Compose. Proyek lanjut untuk memahami konsistensi data.
+    level: Lanjut
+    steps:
+      - title: Skema produk dan pesanan
+        content: |
+          ## Tujuan
+          Model data yang mendukung transaksi.
+
+          Tabel utama: `products`, `orders`, `order_items`, `payments`. Simpan harga saat transaksi di `order_items` agar riwayat tidak berubah saat harga produk berubah.
+
+          ## Checklist
+          - [ ] Foreign key dan index dibuat
+          - [ ] Stok punya constraint tidak negatif
+          - [ ] Status pesanan punya alur jelas
+      - title: Checkout atomik
+        content: |
+          ## Tujuan
+          Mencegah oversell.
+
+          Gunakan transaksi dan `SELECT ... FOR UPDATE` saat mengurangi stok. Rollback jika salah satu item gagal.
+
+          ## Checklist
+          - [ ] Stok berkurang atomik
+          - [ ] Test konkurensi membuktikan tidak oversell
+          - [ ] Retry hanya untuk deadlock
+      - title: Cache dan deployment
+        content: |
+          ## Tujuan
+          Mempercepat katalog dan menyiapkan lingkungan produksi.
+
+          Cache daftar produk di Redis dengan TTL pendek. Invalidasi saat produk berubah. Jalankan API, MySQL, dan Redis lewat Docker Compose.
+
+          ## Checklist
+          - [ ] Cache hit terukur
+          - [ ] Invalidasi benar saat update
+          - [ ] Compose bisa start dari nol
+  - slug: realtime-chat
+    title: Realtime Chat / Notification Service
+    description: WebSocket, hub, dan worker queue. Proyek lanjut untuk mendalami concurrency.
+    level: Lanjut
+    steps:
+      - title: Desain koneksi dan pesan
+        content: |
+          ## Tujuan
+          Menentukan format pesan dan lifecycle koneksi.
+
+          Format JSON: `{ "type": "message", "room": "umum", "body": "halo" }`. Setiap koneksi punya read dan write goroutine.
+
+          ## Checklist
+          - [ ] Batas ukuran pesan
+          - [ ] Ping/pong untuk deteksi koneksi mati
+          - [ ] Graceful shutdown menutup semua koneksi
+      - title: Hub dan fan-out
+        content: |
+          ## Tujuan
+          Mengirim pesan ke banyak klien tanpa race.
+
+          Gunakan channel untuk registrasi, unregister, dan broadcast. Jangan menulis ke koneksi dari banyak goroutine sekaligus.
+
+          ## Checklist
+          - [ ] Hub diuji dengan race detector
+          - [ ] Slow client tidak memblokir semua
+          - [ ] Metrics jumlah koneksi
+      - title: Notifikasi async
+        content: |
+          ## Tujuan
+          Memisahkan pengiriman notifikasi dari request utama.
+
+          Simpan job ke queue, lalu worker mengirim email. Pastikan idempotensi agar job yang diulang tidak mengirim dua kali.
+
+          ## Checklist
+          - [ ] Worker bisa retry
+          - [ ] Ada dead-letter handling
+          - [ ] Job idempoten

@@ -1,0 +1,47 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: golearn
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      PORT: "8080"
+      DB_DSN: "root:password@tcp(db:3306)/golearn?parseTime=true&multiStatements=true&charset=utf8mb4"
+      JWT_SECRET: "${JWT_SECRET:-please-change-this-to-a-long-random-secret}"
+      ACCESS_TTL: "15m"
+      REFRESH_TTL: "168h"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:8081"
+      RUNNER_MODE: "playground"
+      PLAYGROUND_URL: "https://go.dev/_/compile"
+      RUN_TIMEOUT: "8s"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  dbdata:
